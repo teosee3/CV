@@ -1,0 +1,250 @@
+// ---------------------------------------------------------------------------
+/*
+
+ CHATTING PROGRAM
+ 240425 TAE SEUNG KIM
+ */
+#include <vcl.h>
+#pragma hdrstop
+
+#include "Application.h"
+// ---------------------------------------------------------------------------
+#pragma package(smart_init)
+#pragma resource "*.dfm"
+TChat *Chat;
+
+// ---------------------------------------------------------------------------
+__fastcall TChat::TChat(TComponent* Owner) : TForm(Owner) {
+
+    _pClient = NULL;
+    _pServer = NULL;
+    _pServerClient = NULL;
+
+    _ServerRecvFlag = false;
+    _ServerSendFlag = false;
+    _ClientRecvFlag = false;
+    _ClientSendFlag = false;
+}
+
+// ---------------------------------------------------------------------------
+void __fastcall TChat::btnStartClick(TObject *Sender) {
+
+    // 체크박스 활성화
+    if (CheckBox1->Checked) {
+
+        // 서버가 켜져있다면 꺼준다
+        if (_pServer) {
+            _pServer->OnClientConnect = NULL;
+            _pServer->OnClientDisconnect = NULL;
+            _pServer->OnClientError = NULL;
+            _pServer->OnClientRead = NULL;
+
+            _pServer->Active = false;
+            _pServer = NULL;
+            delete _pServer;
+        }
+
+        if (_pServerClient) {
+            _pServerClient->Close();
+            _pServerClient = NULL;
+            delete _pServerClient;
+        }
+
+        // 서버 생성 및 초기화
+        _isServer = TRUE;
+        _pServer = new TServerSocket(this);
+
+        _pServer->Port = 1347;
+        _pServer->OnClientConnect = onConnect;
+        _pServer->OnClientDisconnect = onDisconnect;
+        _pServer->OnClientError = onError;
+        _pServer->OnClientRead = onRecv;
+        _pServer->Active = true;
+
+        panelLed->Color = clLime;
+        panelLed->Caption = "Server";
+        memoDisplay->Lines->Add("[Server Socket Open]");
+    }
+    else {
+
+        // 클라이언트가 켜져있다면 꺼준다
+        if (_pClient) {
+            _pClient->OnConnect = NULL;
+            _pClient->OnDisconnect = NULL;
+            _pClient->OnError = NULL;
+            _pClient->OnRead = NULL;
+
+            _pClient->Active = false;
+            delete _pClient;
+            _pClient = NULL;
+        }
+        // 클라이언트 생성 및 초기화
+        _isServer = FALSE;
+        _pClient = new TClientSocket(this);
+        _pClient->Address = "127.0.0.1";
+        _pClient->Port = 1347;
+        _pClient->OnConnect = onConnect;
+        _pClient->OnDisconnect = onDisconnect;
+        _pClient->OnError = onError;
+        _pClient->OnRead = onRecv;
+        _pClient->Active = true;
+
+        panelLed->Color = clYellow;
+        panelLed->Caption = "Client";
+        memoDisplay->Lines->Add("[Client Socket Open]");
+    }
+}
+
+// ---------------------------------------------------------------------------
+void __fastcall TChat::onConnect(TObject *Sender, TCustomWinSocket *Socket) {
+
+    if (_isServer) {
+        TServerWinSocket* pServer = dynamic_cast<TServerWinSocket*>(Sender);
+        _pServerClient = Socket;
+
+        memoDisplay->Lines->Add("[Server Connect]");
+    }
+    else {
+        TClientSocket* pClient = dynamic_cast<TClientSocket*>(Sender);
+        _pServerClient = Socket;
+
+        memoDisplay->Lines->Add("[Client Connect]");
+    }
+}
+
+void __fastcall TChat::onDisconnect(TObject *Sender, TCustomWinSocket *Socket) {
+    if (_isServer) {
+        TServerWinSocket* pServer = dynamic_cast<TServerWinSocket*>(Sender);
+
+        memoDisplay->Lines->Add("[Server Disconnect]");
+
+    }
+    else {
+        TClientSocket* pClient = dynamic_cast<TClientSocket*>(Sender);
+
+        memoDisplay->Lines->Add("[Client Disconnect]");
+    }
+}
+
+void __fastcall TChat::onError(TObject *Sender, TCustomWinSocket *Socket,
+    TErrorEvent ErrorEvent, int &ErrorCode) {
+    if (_isServer) {
+        TServerWinSocket* pServer = dynamic_cast<TServerWinSocket*>(Sender);
+
+        ErrorCode = 0;
+    }
+    else {
+        TClientSocket* pClient = dynamic_cast<TClientSocket*>(Sender);
+
+        ErrorCode = 0;
+    }
+}
+
+void __fastcall TChat::onRecv(TObject *Sender, TCustomWinSocket *Socket) {
+
+    if (_isServer) {
+        TServerWinSocket* pServer = dynamic_cast<TServerWinSocket*>(Sender);
+
+        AnsiString RecvData = Socket->ReceiveText();
+        _ServerRecvFlag = true;
+
+        if (_ServerRecvFlag) {
+            TDateTime now = TDateTime::CurrentDateTime();
+            memoDisplay->Lines->Add(DateTimeToStr(now) + " [ServerRecv] " +
+                RecvData);
+            _ServerRecvFlag = false;
+        }
+    }
+    else {
+        TClientSocket* pClient = dynamic_cast<TClientSocket*>(Sender);
+
+        AnsiString RecvData = Socket->ReceiveText();
+        _ClientRecvFlag = true;
+
+        if (_ClientRecvFlag) {
+            TDateTime now = TDateTime::CurrentDateTime();
+            memoDisplay->Lines->Add(DateTimeToStr(now) + " [ClientRecv] " +
+                RecvData);
+            _ClientRecvFlag = false;
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+void __fastcall TChat::btnSendClick(TObject *Sender) {
+
+    if (_isServer) {
+        _ServerSendFlag = true;
+        _pServer->Active = true;
+        AnsiString SendData = edtInput->Text;
+        this->Send(SendData);
+    }
+    else {
+        _ClientSendFlag = true;
+        _pClient->Active = true;
+
+        AnsiString SendData = edtInput->Text;
+        this->Send(SendData);
+    }
+}
+
+// ---------------------------------------------------------------------------
+void TChat::Send(AnsiString SendingMessage) {
+
+    if (_isServer) {
+        _pServerClient->SendText(AnsiString(SendingMessage));
+        TDateTime now = TDateTime::CurrentDateTime();
+        memoDisplay->Lines->Add(DateTimeToStr(now) + " [ServerSend] " +
+            SendingMessage);
+
+        _ServerSendFlag = true;
+    }
+    else {
+        _pClient->Socket->SendText(AnsiString(SendingMessage));
+        TDateTime now = TDateTime::CurrentDateTime();
+        memoDisplay->Lines->Add(DateTimeToStr(now) + " [ClientSend] " +
+            SendingMessage);
+
+        _ClientSendFlag = true;
+    }
+}
+
+// ---------------------------------------------------------------------------
+void __fastcall TChat::FormDestroy(TObject *Sender) {
+
+    // 서버가 켜져있다면 꺼준다
+    if (_pServer) {
+        _pServer->OnClientConnect = NULL;
+        _pServer->OnClientDisconnect = NULL;
+        _pServer->OnClientError = NULL;
+        _pServer->OnClientRead = NULL;
+
+        _pServer->Active = false;
+        delete _pServer;
+        _pServer = NULL;
+    }
+
+    if (_pServerClient) {
+        _pServerClient->Close();
+        delete _pServerClient;
+        _pServerClient = NULL;
+    }
+
+    // 클라이언트가 켜져있다면 꺼준다
+    if (_pClient) {
+        _pClient->OnConnect = NULL;
+        _pClient->OnDisconnect = NULL;
+        _pClient->OnError = NULL;
+        _pClient->OnRead = NULL;
+
+        _pClient->Active = false;
+        delete _pClient;
+        _pClient = NULL;
+    }
+}
+// ---------------------------------------------------------------------------
+
+void __fastcall TChat::edtInputClick(TObject *Sender) {
+    edtInput->Text = "";
+}
+
