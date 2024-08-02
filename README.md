@@ -65,7 +65,7 @@
     <img src="https://img.shields.io/badge/teosee3@gmail.com-FFFFFF?style=for-the-badge&logo=gmail&logoColor=0000FF"/>&nbsp
   </a>
   <!-- Github 아이콘 -->
-  <a href="https://github.com/teosee3/teotalk">
+  <a href="https://github.com/teosee3/CV">
     <img src="https://img.shields.io/badge/Github-FFFFFF?style=for-the-badge&logo=github&logoColor=0000FF" />&nbsp
   </a>
 </div>
